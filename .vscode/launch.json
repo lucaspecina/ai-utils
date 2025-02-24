@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Ollama Chat",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/inference-conversation-ollama.py",
+            "args": [
+                "--model", "deepseek-r1:8b",
+                "--temperature", "0.2"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}
