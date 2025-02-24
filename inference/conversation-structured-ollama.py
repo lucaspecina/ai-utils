@@ -1,13 +1,13 @@
 """
 A CLI chat interface for Ollama models with structured outputs.
-Usage: python inference-conversation-structured-ollama.py [--model MODEL] [--temperature TEMP]
+Usage: python inference/conversation-structured-ollama.py [--model MODEL] [--temperature TEMP]
 
 Examples:
     # Start chat with default model
-    python inference-conversation-structured-ollama.py
+    python inference/conversation-structured-ollama.py
 
     # Use specific model and temperature
-    python inference-conversation-structured-ollama.py --model codellama --temperature 0.2
+    python inference/conversation-structured-ollama.py --model codellama --temperature 0.2
 
 Once started, use commands like:
     /json    - Switch to JSON output

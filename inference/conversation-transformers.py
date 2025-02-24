@@ -1,16 +1,16 @@
 """
 A CLI chat interface using HuggingFace Transformers for local inference.
-Usage: python inference-conversation-transformers.py [--model MODEL] [--device DEVICE]
+Usage: python inference/conversation-transformers.py [--model MODEL] [--device DEVICE]
 
 Examples:
     # Start chat with default model on CPU
-    python inference-conversation-transformers.py
+    python inference/conversation-transformers.py
 
     # Use specific model on GPU
-    python inference-conversation-transformers.py --model facebook/opt-350m --device cuda
+    python inference/conversation-transformers.py --model facebook/opt-350m --device cuda
 
     # Use quantized model for better memory efficiency
-    python inference-conversation-transformers.py --model TheBloke/Mistral-7B-v0.1-GGUF --device cpu --quantized
+    python inference/conversation-transformers.py --model TheBloke/Mistral-7B-v0.1-GGUF --device cpu --quantized
 """
 
 from transformers import (

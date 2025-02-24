@@ -4,13 +4,13 @@ Usage: python inference-single-structured-ollama.py --format [json|kv|list|table
 
 Examples:
     # Get JSON response
-    python inference-single-structured-ollama.py --format json "Tell me about Python"
+    python inference/single-structured-ollama.py --format json "Tell me about Python"
 
     # Get list format with specific model
-    python inference-single-structured-ollama.py --format list --model codellama "List top 5 programming languages"
+    python inference/single-structured-ollama.py --format list --model codellama "List top 5 programming languages"
 
     # Get table format with custom temperature
-    python inference-single-structured-ollama.py --format table --temperature 0.2 "Compare Python vs JavaScript"
+    python inference/single-structured-ollama.py --format table --temperature 0.2 "Compare Python vs JavaScript"
 """
 
 from langchain_ollama import ChatOllama

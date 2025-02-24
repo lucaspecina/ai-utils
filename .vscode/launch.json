@@ -15,6 +15,53 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}"
             }
+        },
+        {
+            "name": "Debug Multi-Agent Ollama+LangChain",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/agents/multi-agent-ollama-langchain.py",
+            "args": [
+                "--research-model", "llama3",
+                "--reasoning-model", "llama3",
+                "--writing-model", "llama3",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Debug Multi-Agent Transformers",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/agents/multi-agent-transformers.py",
+            "args": [
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Multi-Agent Ollama+LangChain with Query",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/agents/multi-agent-ollama-langchain.py",
+            "args": [
+                "--query", "Explain the impact of quantum computing on cryptography",
+                "--save", "quantum_crypto_research.json",
+                "--verbose"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ]
 }

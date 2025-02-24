@@ -1,6 +1,6 @@
 """
 A simple CLI chat interface for Ollama models.
-Usage: python inference-conversation-ollama.py [--model MODEL] [--temperature TEMP]
+Usage: python inference/conversation-ollama.py [--model MODEL] [--temperature TEMP]
 """
 
 # Required imports

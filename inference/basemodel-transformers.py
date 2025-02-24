@@ -1,16 +1,16 @@
 """
 A CLI tool for text completion using base LLMs (not instruction-tuned).
-Usage: python inference-basemodel-transformers.py [--model MODEL] [--device DEVICE]
+Usage: python inference/basemodel-transformers.py [--model MODEL] [--device DEVICE]
 
 Examples:
     # Use base GPT-2
-    python inference-basemodel-transformers.py --model gpt2-medium
+    python inference/basemodel-transformers.py --model gpt2-medium
 
     # Use base LLAMA
-    python inference-basemodel-transformers.py --model facebook/opt-1.3b --device cuda
+    python inference/basemodel-transformers.py --model facebook/opt-1.3b --device cuda
 
     # Use with specific settings
-    python inference-basemodel-transformers.py --model EleutherAI/pythia-1.4b --max_length 200 --temp 0.9
+    python inference/basemodel-transformers.py --model EleutherAI/pythia-1.4b --max_length 200 --temp 0.9
 """
 
 from transformers import AutoModelForCausalLM, AutoTokenizer

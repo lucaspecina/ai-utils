@@ -1,16 +1,16 @@
 """
 A CLI tool for getting structured responses using Langchain's output parsers.
-Usage: python inference-langchain-structured-ollama.py --format [json|pydantic|list] "Your query here"
+Usage: python inference/structured-ollama-langchain.py --format [json|pydantic|list] "Your query here"
 
 Examples:
     # Get JSON response
-    python inference-langchain-structured-ollama.py --format json "Analyze Python programming language"
+    python inference/structured-ollama-langchain.py --format json "Analyze Python programming language"
 
     # Get structured person info
-    python inference-langchain-structured-ollama.py --format pydantic "Tell me about Alan Turing"
+    python inference/structured-ollama-langchain.py --format pydantic "Tell me about Alan Turing"
 
     # Get list of items
-    python inference-langchain-structured-ollama.py --format list "List top cloud providers"
+    python inference/structured-ollama-langchain.py --format list "List top cloud providers"
 """
 
 from langchain_ollama import ChatOllama
