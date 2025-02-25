@@ -1,0 +1,89 @@
+[
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "calculate 24 * 365 for me please."
+      },
+      {
+        "role": "assistant",
+        "content": "I'll help you calculate 24 * 365. Let me look that up for you.",
+        "tool_calls": [
+          {
+            "name": "calculate",
+            "parameters": {
+              "expression": "5^3 + 2"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "content": "The result of 5^3 + 2 is 229",
+        "name": "calculate"
+      },
+      {
+        "role": "assistant",
+        "content": "Based on the information I found: The result of 5^3 + 2 is 229"
+      }
+    ],
+    "tools": [
+      {
+        "name": "search_web",
+        "description": "Search the web for information on a topic",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query"
+            },
+            "num_results": {
+              "type": "integer",
+              "description": "Number of results to return"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City or location name"
+            },
+            "units": {
+              "type": "string",
+              "description": "Temperature units (celsius/fahrenheit)"
+            }
+          },
+          "required": [
+            "location"
+          ]
+        }
+      },
+      {
+        "name": "calculate",
+        "description": "Perform a mathematical calculation",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "expression": {
+              "type": "string",
+              "description": "Mathematical expression to evaluate"
+            }
+          },
+          "required": [
+            "expression"
+          ]
+        }
+      }
+    ]
+  }
+]

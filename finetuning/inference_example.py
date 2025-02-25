@@ -146,7 +146,8 @@ def generate_response(
     max_new_tokens: int = 512,
     temperature: float = 0.7,
     top_p: float = 0.9,
-    system_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None,
+    base_model_name: Optional[str] = None
 ) -> str:
     """Generate a response from the fine-tuned model."""
     # Load the model and tokenizer
@@ -155,9 +156,11 @@ def generate_response(
     # Check if this is a PEFT model
     try:
         config = PeftConfig.from_pretrained(model_path)
-        print(f"Loading PEFT model with base model: {config.base_model_name_or_path}")
+        # Use provided base_model_name if available, otherwise use the one from config
+        base_model_path = base_model_name or config.base_model_name_or_path
+        print(f"Loading PEFT model with base model: {base_model_path}")
         base_model = AutoModelForCausalLM.from_pretrained(
-            config.base_model_name_or_path,
+            base_model_path,
             torch_dtype=torch.float16,
             device_map="auto",
             trust_remote_code=True

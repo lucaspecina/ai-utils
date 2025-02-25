@@ -59,7 +59,43 @@ python tool_using.py \
   --learning_rate 1e-5
 ```
 
+### Testing with Base Model
+
+To test the base model's tool-using capabilities before training:
+
+```bash
+python tool_using.py --model_name mistralai/Mistral-7B-v0.1 --generate_only --base_model_inference
+```
+
+### Saving Checkpoints During Training
+
+To save checkpoints at regular intervals during training:
+
+```bash
+python tool_using.py \
+  --model_name mistralai/Mistral-7B-v0.1 \
+  --output_dir output/tool_using_model \
+  --save_strategy steps \
+  --save_steps 50 \
+  --eval_steps 50 \
+  --save_total_limit 10
+```
+
+### Evaluating Checkpoints
+
+To evaluate the model at different checkpoints:
+
+```bash
+python evaluate_checkpoints.py \
+  --checkpoint_dir output/tool_using_model \
+  --data_path data/tool_using_dataset.json \
+  --num_examples 20 \
+  --output_file checkpoint_evaluation.json
+```
+
 ## Parameters
+
+### Main Training Script
 
 - `--model_name`: Base model to fine-tune (default: "mistralai/Mistral-7B-v0.1")
 - `--data_path`: Path to the dataset file (default: "data/tool_using_dataset.json")
@@ -69,8 +105,23 @@ python tool_using.py \
 - `--per_device_train_batch_size`: Batch size per device during training (default: 4)
 - `--gradient_accumulation_steps`: Number of gradient accumulation steps (default: 4)
 - `--learning_rate`: Learning rate (default: 2e-5)
+- `--save_strategy`: When to save checkpoints (steps, epoch, or no) (default: "steps")
+- `--save_steps`: Save checkpoint every X steps (default: 100)
+- `--eval_steps`: Evaluate every X steps (default: 100)
+- `--save_total_limit`: Maximum number of checkpoints to keep (default: 5)
 - `--seed`: Random seed (default: 42)
 - `--generate_only`: Only generate the dataset without training
+- `--base_model_inference`: Run inference with the base model before training
+
+### Checkpoint Evaluation Script
+
+- `--checkpoint_dir`: Directory containing model checkpoints
+- `--data_path`: Path to the dataset file
+- `--base_model_name`: Name of the base model (if not specified in PEFT config)
+- `--num_examples`: Number of examples to evaluate (default: 10)
+- `--output_file`: Path to save evaluation results (default: "checkpoint_evaluation.json")
+- `--max_new_tokens`: Maximum number of new tokens to generate (default: 512)
+- `--temperature`: Sampling temperature (default: 0.1)
 
 ## Data Format
 
@@ -120,4 +171,15 @@ parameters: {
   "param2": "value2"
 }
 </tool_call>
-``` 
+```
+
+## Checkpoint Evaluation
+
+The checkpoint evaluation script allows you to:
+
+1. Test the model at different stages of training
+2. Compare tool-using capabilities across checkpoints
+3. Measure tool call accuracy and parameter accuracy
+4. Generate detailed reports for each checkpoint
+
+The evaluation results are saved as a JSON file with metrics for each checkpoint. 

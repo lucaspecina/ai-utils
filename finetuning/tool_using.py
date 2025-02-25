@@ -383,7 +383,10 @@ def train_model(
     bnb_4bit_quant_type: str = "nf4",
     use_gradient_checkpointing: bool = True,
     logging_steps: int = 10,
-    save_strategy: str = "epoch",
+    save_strategy: str = "steps",
+    save_steps: int = 100,
+    eval_steps: int = 100,
+    save_total_limit: int = 5,
     seed: int = 42
 ) -> None:
     """Fine-tune a model for tool-using capabilities."""
@@ -466,7 +469,10 @@ def train_model(
         warmup_ratio=warmup_ratio,
         logging_steps=logging_steps,
         save_strategy=save_strategy,
-        evaluation_strategy="epoch",
+        save_steps=save_steps,
+        save_total_limit=save_total_limit,
+        evaluation_strategy=save_strategy,
+        eval_steps=eval_steps,
         fp16=True,
         remove_unused_columns=False,
         report_to="none",
@@ -520,10 +526,20 @@ def main():
                         help="Number of gradient accumulation steps")
     parser.add_argument("--learning_rate", type=float, default=2e-5,
                         help="Learning rate")
+    parser.add_argument("--save_strategy", type=str, default="steps",
+                        help="When to save checkpoints (steps, epoch, or no)")
+    parser.add_argument("--save_steps", type=int, default=100,
+                        help="Save checkpoint every X steps (if save_strategy=steps)")
+    parser.add_argument("--eval_steps", type=int, default=100,
+                        help="Evaluate every X steps (if save_strategy=steps)")
+    parser.add_argument("--save_total_limit", type=int, default=5,
+                        help="Maximum number of checkpoints to keep")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed")
     parser.add_argument("--generate_only", action="store_true",
                         help="Only generate the dataset without training")
+    parser.add_argument("--base_model_inference", action="store_true",
+                        help="Run inference with the base model before training")
     
     args = parser.parse_args()
     
@@ -544,6 +560,41 @@ def main():
     # Prepare dataset
     dataset = prepare_dataset(args.data_path)
     
+    # Run inference with base model if requested
+    if args.base_model_inference:
+        logger.info(f"Running inference with base model: {args.model_name}")
+        # Import the inference module
+        try:
+            from inference_example import generate_response, extract_tool_calls
+            
+            # Sample a few examples from the dataset
+            sample_examples = dataset.select(range(min(3, len(dataset))))
+            
+            for i, example in enumerate(sample_examples):
+                user_query = example["conversations"]["messages"][0]["content"]
+                logger.info(f"Example {i+1} - User query: {user_query}")
+                
+                # Generate response with base model
+                response = generate_response(
+                    model_path=args.model_name,
+                    user_query=user_query,
+                    max_new_tokens=512,
+                    temperature=0.7
+                )
+                
+                logger.info(f"Base model response: {response}")
+                
+                # Extract tool calls
+                tool_calls = extract_tool_calls(response)
+                if tool_calls:
+                    logger.info(f"Extracted {len(tool_calls)} tool call(s)")
+                else:
+                    logger.info("No tool calls detected")
+                
+                logger.info("-" * 50)
+        except ImportError:
+            logger.warning("Could not import inference_example module. Skipping base model inference.")
+    
     # Train the model
     train_model(
         model_name=args.model_name,
@@ -553,6 +604,10 @@ def main():
         per_device_train_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         learning_rate=args.learning_rate,
+        save_strategy=args.save_strategy,
+        save_steps=args.save_steps,
+        eval_steps=args.eval_steps,
+        save_total_limit=args.save_total_limit,
         seed=args.seed
     )
     
