@@ -31,6 +31,22 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.layout import Layout
 from rich.live import Live
+import tqdm.auto
+import warnings
+from contextlib import redirect_stdout, redirect_stderr
+import io
+import base64
+
+# Silence tqdm progress bars from sentence-transformers (causing the "batches" logs)
+# Add this code right after your imports section
+tqdm.auto.tqdm = lambda *args, **kwargs: tqdm.auto.tqdm(*args, **kwargs, disable=True)
+warnings.filterwarnings("ignore")
+
+# Suppress certain logs
+import logging
+logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("faiss").setLevel(logging.ERROR)
 
 # Configure logging
 logging.basicConfig(
@@ -245,8 +261,6 @@ class ActivityMonitor:
     
     def _get_active_window(self):
         """Get the name of the currently active window."""
-        # Cross-platform approach to getting active window name
-        # This is a simplified implementation
         try:
             import platform
             system = platform.system()
@@ -255,32 +269,55 @@ class ActivityMonitor:
                 try:
                     import win32gui
                     window = win32gui.GetForegroundWindow()
-                    return win32gui.GetWindowText(window)
+                    window_title = win32gui.GetWindowText(window)
+                    # Extract application name from window title
+                    if " - " in window_title:
+                        app_name = window_title.split(" - ")[-1]
+                    else:
+                        app_name = window_title
+                    return app_name.strip()
                 except ImportError:
-                    return "Unknown (win32gui not installed)"
+                    return "Windows Application"
             
             elif system == "Darwin":  # macOS
                 try:
-                    import AppKit
-                    active_app = AppKit.NSWorkspace.sharedWorkspace().activeApplication()
-                    return active_app['NSApplicationName']
-                except ImportError:
-                    return "Unknown (AppKit not installed)"
+                    # Simplified macOS app detection
+                    import subprocess
+                    script = 'tell application "System Events" to get name of first application process whose frontmost is true'
+                    result = subprocess.run(['osascript', '-e', script], 
+                                          capture_output=True, text=True)
+                    return result.stdout.strip()
+                except Exception:
+                    return "macOS Application"
             
             elif system == "Linux":
                 try:
+                    # If xdotool is available
                     import subprocess
-                    result = subprocess.run(['xdotool', 'getwindowfocus', 'getwindowname'], 
-                                          stdout=subprocess.PIPE, text=True)
-                    return result.stdout.strip()
-                except (ImportError, subprocess.SubprocessError):
-                    return "Unknown (xdotool not available)"
+                    result = subprocess.run(['xdotool', 'getactivewindow', 'getwindowname'], 
+                                          capture_output=True, text=True)
+                    window_title = result.stdout.strip()
+                    # Try to extract app name from window title
+                    if " - " in window_title:
+                        app_parts = window_title.split(" - ")
+                        return app_parts[-1] if len(app_parts[-1]) < 20 else app_parts[0]
+                    return window_title
+                except:
+                    # Fallback to basic process info
+                    try:
+                        # Find process with highest CPU as a heuristic
+                        process = sorted(psutil.process_iter(['pid', 'name', 'cpu_percent']), 
+                                        key=lambda x: x.info['cpu_percent'], 
+                                        reverse=True)[0]
+                        return process.info['name']
+                    except:
+                        return "Linux Application"
             
-            return "Unknown system"
+            return "Unknown Application"
         
         except Exception as e:
             logger.error(f"Error getting active window: {e}")
-            return "Unknown"
+            return "Current Application"
     
     def _process_screenshot(self, screenshot_path):
         """Process screenshot using vision model to extract information."""
@@ -288,7 +325,6 @@ class ActivityMonitor:
             # Use Ollama's vision model (llava) to process the screenshot
             with open(screenshot_path, "rb") as img_file:
                 # Convert to base64 for Ollama API
-                import base64
                 image_data = base64.b64encode(img_file.read()).decode("utf-8")
             
             # Create prompt for vision model
@@ -504,7 +540,6 @@ class MultimodalProcessor:
                 
                 # Read the image
                 with open(image_path, "rb") as img_file:
-                    import base64
                     image_data = base64.b64encode(img_file.read()).decode("utf-8")
                 
                 # Call vision model
@@ -584,6 +619,45 @@ class MultimodalProcessor:
             logger.error(f"Voice recognition error: {e}")
             return ""
 
+    def analyze_image(self, image_path: str, query: str = "Describe what you see in this image") -> str:
+        """Analyze an image using vision model."""
+        try:
+            # Use llava or other vision-capable model if available
+            vision_models = ["llava", "llama3.2-vision", "bakllava", "moondream"]
+            
+            # Check available models
+            models_info = ollama.list()
+            available_models = [model["name"] for model in models_info.get("models", [])]
+            
+            # Find first matching vision model
+            model_to_use = None
+            for vm in vision_models:
+                matching = [m for m in available_models if vm in m.lower()]
+                if matching:
+                    model_to_use = matching[0]
+                    break
+            
+            if not model_to_use:
+                logger.warning("No vision model found. Using text model for image description.")
+                return "I'm unable to analyze images at the moment."
+            
+            # Load and encode the image
+            with open(image_path, "rb") as f:
+                image_data = f.read()
+                image_base64 = base64.b64encode(image_data).decode("utf-8")
+            
+            # Call vision model
+            response = ollama.generate(
+                model=model_to_use,
+                prompt=query,
+                images=[image_base64]
+            )
+            
+            return response["response"]
+        except Exception as e:
+            logger.error(f"Error analyzing image: {e}")
+            return f"I encountered an error analyzing the image: {str(e)}"
+
 
 class ReasonerandPlanner:
     """
@@ -593,7 +667,29 @@ class ReasonerandPlanner:
     """
     
     def __init__(self, config: Dict):
+        """Initialize the reasoner component."""
         self.config = config
+        # Add model_name attribute with default value
+        self.model_name = "llama3.2:latest"  # Default to latest Llama 3.2
+        
+        # Set up the Ollama endpoint
+        ollama.set_host(self.config["models"].get("ollama_host", "http://localhost:11434"))
+        
+        try:
+            # Check available models and select appropriate Llama model
+            models_info = ollama.list()
+            if "models" in models_info:
+                models = [model["name"] for model in models_info["models"]]
+                # Look for any Llama3 variant
+                llama_models = [m for m in models if "llama3" in m.lower()]
+                if llama_models:
+                    self.model_name = llama_models[0]
+                    logger.info(f"Using model: {self.model_name}")
+                else:
+                    logger.warning("No Llama3 model variant found. Please run: ollama pull llama3")
+        except Exception as e:
+            logger.error(f"Error initializing text model: {e}")
+            logger.error(f"Make sure Ollama is running and accessible at {self.config['models'].get('ollama_host')}")
         
         # System prompt that defines the assistant's capabilities and personality
         self.system_prompt = """
@@ -613,79 +709,68 @@ class ReasonerandPlanner:
         Your goal is to be a trusted assistant that helps the user accomplish their goals effectively.
         """
     
-    def generate_response(self, 
-                         user_input: str, 
-                         conversation_history: List[Dict],
-                         user_context: Dict,
-                         activity_context: List[Dict] = None) -> str:
-        """
-        Generate a response based on user input and available context.
-        """
-        # Construct prompt with all available context
-        prompt = self._construct_prompt(
-            user_input, 
-            conversation_history, 
-            user_context, 
-            activity_context
-        )
-        
+    def generate_response(self, user_input: str, conversation_history: List[Dict] = None, 
+                     user_preferences: Dict = None, activity_context: List[Dict] = None) -> str:
+        """Generate a natural language response to user input."""
         try:
-            # Call Ollama for response generation
+            # Build the prompt
+            prompt = self._build_prompt(user_input, conversation_history, user_preferences, activity_context)
+            
+            print(Fore.YELLOW + f"Generating response from Ollama using {self.model_name}..." + Style.RESET_ALL)
+            # Call Ollama for the response with detected model
             response = ollama.generate(
-                model=self.config["models"]["text_model"],
+                model=self.model_name,  # Use detected model instead of config
                 prompt=prompt
             )
             
-            return response['response']
+            # Extract the text response
+            assistant_response = response['response']
+            print(Fore.GREEN + "Response generated successfully" + Style.RESET_ALL)
+            
+            return assistant_response
             
         except Exception as e:
+            print(Fore.RED + f"ERROR generating response: {e}" + Style.RESET_ALL)
             logger.error(f"Error generating response: {e}")
-            return f"I'm having trouble processing your request. Please try again later. (Error: {str(e)})"
+            return f"I'm sorry, I encountered an error: {str(e)}"
     
-    def _construct_prompt(self, 
-                         user_input: str, 
-                         conversation_history: List[Dict],
-                         user_context: Dict,
-                         activity_context: List[Dict] = None) -> str:
-        """
-        Construct a detailed prompt for the language model.
-        """
-        prompt_parts = [self.system_prompt, "\n\n"]
+    def _build_prompt(self, user_input: str, conversation_history: List[Dict] = None, 
+                user_preferences: Dict = None, activity_context: List[Dict] = None) -> str:
+        """Build a comprehensive prompt that includes context and history."""
+        # Start with system instruction
+        prompt = "You are a helpful, intelligent AI assistant that responds conversationally. "
+        
+        # Add strong instruction about app awareness
+        if activity_context:
+            recent_apps = []
+            for activity in activity_context:
+                if activity.get("type") == "app_activity" and activity.get("app"):
+                    recent_apps.append(activity.get("app"))
+            
+            if recent_apps:
+                # Add explicit instruction to refer to apps
+                prompt += f"\nIMPORTANT: The user is currently using these applications: {', '.join(recent_apps)}. "
+                prompt += "Whenever relevant, mention this context in your response to demonstrate awareness. "
+        
+        # Add user preferences if available
+        if user_preferences and len(user_preferences) > 0:
+            prompt += "\nUser preferences: "
+            for key, value in user_preferences.items():
+                prompt += f"{key}: {value}, "
+            prompt = prompt.rstrip(", ") + ". "
         
         # Add conversation history
-        if conversation_history:
-            prompt_parts.append("Previous conversation:\n")
-            for turn in conversation_history[-5:]:  # Last 5 turns
-                if "user" in turn:
-                    prompt_parts.append(f"User: {turn['user']}\n")
-                if "assistant" in turn:
-                    prompt_parts.append(f"Assistant: {turn['assistant']}\n")
-            prompt_parts.append("\n")
-        
-        # Add user context/preferences
-        if user_context:
-            prompt_parts.append("User preferences and information:\n")
-            for key, value in user_context.items():
-                prompt_parts.append(f"- {key}: {value}\n")
-            prompt_parts.append("\n")
-        
-        # Add activity context if available
-        if activity_context:
-            prompt_parts.append("Recent user activities:\n")
-            for activity in activity_context[-3:]:  # Last 3 activities
-                act_type = activity.get("type", "unknown")
-                if act_type == "app_activity":
-                    prompt_parts.append(f"- Using app: {activity.get('app')} at {activity.get('timestamp')}\n")
-                elif act_type == "screenshot":
-                    content = activity.get("data", {}).get("detected_content_type", "unknown content")
-                    prompt_parts.append(f"- Viewing: {content}\n")
-            prompt_parts.append("\n")
+        if conversation_history and len(conversation_history) > 0:
+            prompt += "\nConversation history:\n"
+            # Include last 3 exchanges
+            for exchange in conversation_history[-3:]:
+                prompt += f"User: {exchange.get('user', '')}\n"
+                prompt += f"Assistant: {exchange.get('assistant', '')}\n"
         
         # Add current user input
-        prompt_parts.append(f"User: {user_input}\n")
-        prompt_parts.append("Assistant: ")
+        prompt += f"\nUser: {user_input}\nAssistant: "
         
-        return "".join(prompt_parts)
+        return prompt
     
     def create_plan(self, goal: str, user_context: Dict) -> List[Dict]:
         """
@@ -713,7 +798,7 @@ class ReasonerandPlanner:
             
             # Call Ollama for the plan
             response = ollama.generate(
-                model=self.config["models"]["text_model"],
+                model=self.model_name,
                 prompt=planning_prompt
             )
             
@@ -1133,6 +1218,15 @@ class SOTAPersonalAssistant:
         
         return plan
 
+    def get_current_context(self) -> Dict:
+        """Get current context about user for debugging purposes."""
+        return {
+            "recent_apps": [a.get("app") for a in self.activity_monitor.get_recent_activities() 
+                           if a.get("type") == "app_activity"],
+            "preferences": self.memory_manager.get_user_preferences(),
+            "conversation_count": len(self.memory_manager.get_conversation_history())
+        }
+
 
 def main():
     """Initialize and start the assistant using Rich TUI."""
@@ -1142,15 +1236,18 @@ def main():
     console = Console()
     
     with console.status("[bold green]Initializing SOTA Assistant...", spinner="dots"):
-        # Create and start the assistant (silently)
-        assistant = SOTAPersonalAssistant(config)
-        assistant.start()
+        # Suppress all output during initialization
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            # Create and start the assistant (silently)
+            assistant = SOTAPersonalAssistant(config)
+            assistant.start()
     
-    # Create a layout
+    # Create a layout with additional context panel
     layout = Layout()
     layout.split(
         Layout(name="header", size=3),
         Layout(name="main"),
+        Layout(name="context", size=6),  # New context panel
         Layout(name="input", size=3)
     )
     
@@ -1158,12 +1255,20 @@ def main():
     layout["header"].update(Panel("SOTA Personal Assistant", style="bold green"))
     layout["main"].update(Panel("Type your questions below. Type 'exit' to quit.", 
                                title="Conversation"))
+    layout["context"].update(Panel("Context information will appear here", title="System Context"))
     layout["input"].update(Panel("", title="Your message"))
     
     conversation_history = []
     
     try:
         while True:
+            # Get current context and update the context panel
+            context = assistant.get_current_context()
+            context_text = f"[bold]Recent Applications:[/bold] {', '.join(context['recent_apps'][-3:]) if context['recent_apps'] else 'None detected'}\n"
+            context_text += f"[bold]User Preferences:[/bold] {', '.join([f'{k}: {v}' for k, v in context['preferences'].items()])}\n"
+            context_text += f"[bold]Memory:[/bold] {context['conversation_count']} conversations remembered"
+            layout["context"].update(Panel(context_text, title="System Context"))
+            
             # Display the current layout
             console.clear()
             console.print(layout)
@@ -1177,9 +1282,11 @@ def main():
             # Add to conversation
             conversation_history.append(f"[bold cyan]You:[/bold cyan] {user_input}")
             
-            # Process input
+            # Process input (silently)
             with console.status("[bold yellow]Assistant is thinking...", spinner="dots"):
-                response = assistant.process_input(user_input)
+                # Suppress any progress bars or logs during processing
+                with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    response = assistant.process_input(user_input)
             
             # Add response to conversation
             conversation_history.append(f"[bold green]Assistant:[/bold green] {response}")
